@@ -2,9 +2,21 @@
 pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
 
 
 contract Pair {
+
+    using SafeERC20 for IERC20; // protecting against fake revert on non-standard ERC20 implementations
+
+    event SwapEth(
+    address indexed sender,
+    uint256 ethIn,
+    uint256 tokensOut
+    );
+
+
 
     address public tokenAddress;
     uint256 public ethAmount = 0;
@@ -68,17 +80,29 @@ contract Pair {
             tokenAmount -= tokenToReturn;
             balanceLp[msg.sender] -= _lpAmount;
             totalLp -= _lpAmount;
-            bool tokenSent = IERC20(tokenAddress).transfer(msg.sender, tokenToReturn);
-            require(tokenSent, "token transfer failed");
+            IERC20(tokenAddress).safeTransfer(msg.sender, tokenToReturn);
             (bool ethSent, ) = msg.sender.call{value: ethToReturn}("");
             require(ethSent, "eth transfer failed");
 
     }
 
-    function swapEthForTokens() external payable {
+    function swapEthForTokens(uint256 _minimumToReceive) external payable {
+        // asking for a minimum to receive to protect user against slippage.
 
-
+        require(msg.value > 0);
+        require(tokenAmount > 0 && ethAmount > 0);
         uint256 k = ethAmount * tokenAmount;
+        uint256 ethAmountBefore = ethAmount;
+        uint256 realEthAmount = msg.value * 997 / 1000;
+        uint256 ethAmountAfter = ethAmountBefore + realEthAmount;
+        uint256 tokenAmountAfter = k / ethAmountAfter;
+        uint256 tokenOut = tokenAmount - tokenAmountAfter; // cannot be greater than tokenAmount
+        // tokenOut is rounded in favor of the pool
+        require (tokenOut >= _minimumToReceive);
+        ethAmount = ethAmount + msg.value;
+        tokenAmount = tokenAmountAfter;
+        IERC20(tokenAddress).safeTransfer(msg.sender, tokenOut);
+        emit SwapEth(msg.sender, msg.value, tokenOut);
     }
 
 
