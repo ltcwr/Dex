@@ -16,6 +16,22 @@ contract Pair {
     uint256 tokensOut
     );
 
+    event AddLiquidity(
+    address indexed provider,
+    uint256 ethAmount,
+    uint256 tokenAmount,
+    uint256 lpMinted
+    );
+
+    event RemoveLiquidity(
+    address indexed provider,
+    uint256 lpBurned,
+    uint256 ethAmount,
+    uint256 tokenAmount
+    );
+
+
+
 
 
     address public tokenAddress;
@@ -39,6 +55,12 @@ contract Pair {
             tokenAmount = tokenAmount + _tokenAmount;
             balanceLp[msg.sender] += Math.sqrt(msg.value * _tokenAmount);
             totalLp += Math.sqrt(msg.value * _tokenAmount);
+            emit AddLiquidity(
+                msg.sender,
+                msg.value,
+                _tokenAmount,
+                Math.sqrt(msg.value * _tokenAmount)
+            );
         }
         else {
             uint256 expectedToken = (msg.value * tokenAmount) / ethAmount;
@@ -58,11 +80,19 @@ contract Pair {
             lpToMint = Math.min(lpEth, lpToken);  
             totalLp += lpToMint;
             balanceLp[msg.sender] += lpToMint;
+            
+
 
             bool ok = IERC20(tokenAddress).transferFrom(msg.sender, address(this), _tokenAmount);
             require(ok, "Token transfer failed");
             ethAmount = ethAmount + msg.value;
             tokenAmount = tokenAmount + _tokenAmount;
+            emit AddLiquidity(
+                msg.sender,
+                msg.value,
+                _tokenAmount,
+                lpToMint
+            );
         }
     }
         
@@ -83,6 +113,13 @@ contract Pair {
             IERC20(tokenAddress).safeTransfer(msg.sender, tokenToReturn);
             (bool ethSent, ) = msg.sender.call{value: ethToReturn}("");
             require(ethSent, "eth transfer failed");
+            emit RemoveLiquidity(
+                msg.sender,
+                _lpAmount,
+                ethToReturn,
+                tokenToReturn
+            );
+
 
     }
 
