@@ -30,9 +30,11 @@ contract Pair {
     uint256 tokenAmount
     );
 
-
-
-
+    event SwapToken(
+    address indexed sender,
+    uint256 tokensIn,
+    uint256 ethOut
+    );
 
     address public tokenAddress;
     uint256 public ethAmount = 0;
@@ -41,8 +43,6 @@ contract Pair {
     mapping (address => uint256) public balanceLp;
 
     constructor(address _tokenAddress) {tokenAddress = _tokenAddress;}
-
-    
 
     function addLiquidity(uint256 _tokenAmount) public payable {
         require(msg.value > 0, "ethAmount cannot be zero");
@@ -83,8 +83,7 @@ contract Pair {
             
 
 
-            bool ok = IERC20(tokenAddress).transferFrom(msg.sender, address(this), _tokenAmount);
-            require(ok, "Token transfer failed");
+            IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), _tokenAmount);
             ethAmount = ethAmount + msg.value;
             tokenAmount = tokenAmount + _tokenAmount;
             emit AddLiquidity(
@@ -113,6 +112,7 @@ contract Pair {
             IERC20(tokenAddress).safeTransfer(msg.sender, tokenToReturn);
             (bool ethSent, ) = msg.sender.call{value: ethToReturn}("");
             require(ethSent, "eth transfer failed");
+
             emit RemoveLiquidity(
                 msg.sender,
                 _lpAmount,
@@ -127,7 +127,7 @@ contract Pair {
         // asking for a minimum to receive to protect user against slippage.
 
         require(msg.value > 0);
-        require(tokenAmount > 0 && ethAmount > 0);
+        require(tokenAmount > 0 && ethAmount > 0, "empty pool");
         uint256 k = ethAmount * tokenAmount;
         uint256 ethAmountBefore = ethAmount;
         uint256 realEthAmount = msg.value * 997 / 1000;
@@ -141,6 +141,44 @@ contract Pair {
         IERC20(tokenAddress).safeTransfer(msg.sender, tokenOut);
         emit SwapEth(msg.sender, msg.value, tokenOut);
     }
+
+
+    function swapTokensForEth(uint256 _minimumToReceive) external payable {
+
+        require(tokenAmount > 0 && ethAmount > 0, "empty pool");
+        uint256 k = ethAmount * tokenAmount;
+        uint256 tokenBalBefore = IERC20(tokenAddress).balanceOf(address(this));
+        
+        IERC20(tokenAddress).safeTransferFrom(
+            msg.sender,
+            address(this),
+            IERC20(tokenAddress).allowance(msg.sender, address(this))
+        );
+
+        uint256 tokenBalAfter = IERC20(tokenAddress).balanceOf(address(this));
+        uint256 realTokenAmount = tokenBalAfter - tokenBalBefore;
+        require(realTokenAmount > 0, "no tokens received");
+        uint256 realTokenForPricing = realTokenAmount * 997 / 1000;
+
+        uint256 tokenAmountAfter = tokenAmount + realTokenForPricing;
+
+        uint256 ethAmountAfter = k / tokenAmountAfter;
+        uint256 ethOut = ethAmount - ethAmountAfter;
+        require (ethOut > _minimumToReceive, "slippage too high");
+
+        tokenAmount += realTokenAmount;
+        ethAmount = ethAmountAfter;
+
+        (bool ethSent, ) = msg.sender.call{value: ethOut}("");
+        require(ethSent, "eth transfer failed");
+
+        emit SwapToken(msg.sender, realTokenAmount, ethOut);
+
+
+    }
+    
+
+
 
 
         
