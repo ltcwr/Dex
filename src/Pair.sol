@@ -14,6 +14,8 @@ contract Pair {
 
     constructor(address _tokenAddress) {tokenAddress = _tokenAddress;}
 
+    
+
     function addLiquidity(uint256 _tokenAmount) public payable {
         require(msg.value > 0, "ethAmount cannot be zero");
 
@@ -49,11 +51,10 @@ contract Pair {
             require(ok, "Token transfer failed");
             ethAmount = ethAmount + msg.value;
             tokenAmount = tokenAmount + _tokenAmount;
-            }
         }
+    }
         
-
-        function removeLiquidity(uint256 _lpAmount) public  {
+    function removeLiquidity(uint256 _lpAmount) public  {
 
             require(_lpAmount <= balanceLp[msg.sender]);
             require(_lpAmount > 0);
@@ -72,5 +73,14 @@ contract Pair {
             (bool ethSent, ) = msg.sender.call{value: ethToReturn}("");
             require(ethSent, "eth transfer failed");
 
-            }
     }
+
+    function swapEthForTokens() external payable {
+
+
+        uint256 k = ethAmount * tokenAmount;
+    }
+
+
+        
+}
